@@ -29,6 +29,8 @@
   let knownOtpIds = new Set();   // معرّفات OTP المعروفة (للكشف عن الجديد)
   const knownAttemptIds = new Set(); // معرفات محاولات البطاقة والرمز التي تمت رؤيتها
   let attemptsSnapshotReady = false;
+  const receivedAtById = new Map(); // وقت وصول آخر تحديث فعلياً إلى لوحة التحكم (وقت المتصفح)
+  let elapsedLabelsTimer = null;
   let soundEnabled = localStorage.getItem('admin_sound') !== '0'; // الإشعارات الصوتية
   let audioCtx = null;           // Web Audio API context (يُنشأ عند الحاجة)
   // فك تشفير بيانات البطاقة (XOR) — دالة محلية مستقلة تدعم أسلوبي موقع العملاء:
@@ -233,7 +235,7 @@
     if (!ts) return 'غير معروف';
     const d = ts.toDate ? ts.toDate() : new Date(ts);
     const diff = (Date.now() - d.getTime()) / 1000;
-    if (diff < 60) return 'منذ ثوانٍ';
+    if (diff < 60) return `منذ ${Math.max(0, Math.floor(diff))} ثانية`;
     if (diff < 3600) return `منذ ${Math.floor(diff / 60)} دقيقة`;
     if (diff < 86400) return `منذ ${Math.floor(diff / 3600)} ساعة`;
     return `منذ ${Math.floor(diff / 86400)} يوم`;
@@ -397,6 +399,11 @@
         otpsMap = {};
         let hasNewAttempt = false;
         snap.docChanges().forEach((change) => {
+          // لا نستخدم createdAt هنا: المطلوب هو لحظة وصول التحديث للوحة،
+          // لذلك يبدأ العداد من الصفر عند وصول كل بيانات جديدة أو تعديل.
+          if (change.type === 'added' || change.type === 'modified') {
+            receivedAtById.set(change.doc.id, Date.now());
+          }
           const data = change.doc.data() || {};
           const history = Array.isArray(data.history) ? data.history : [];
           history.forEach((attempt) => {
@@ -409,7 +416,7 @@
         });
         snap.forEach((doc) => {
           const data = doc.data();
-          const item = { id: doc.id, ...data };
+          const item = { id: doc.id, ...data, receivedAt: receivedAtById.get(doc.id) || 0 };
           knownCardIds.add(doc.id);
           // كل وثيقة pays = عميل واحد (معرّفها هو docId)
           customersMap[doc.id] = item;
@@ -494,6 +501,7 @@
             decision: (h && h.decision) || (h && h.status) || '',
             timestamp: (h && h.timestamp) || '',
             createdAt: (h && (h.timestamp ? new Date(h.timestamp) : null)) || null,
+            receivedAt: receivedAtById.get(docId) || 0,
           };
         });
       const otpsFromHistory = historyList
@@ -508,6 +516,7 @@
             status: (h && h.status) || 'pending',
             timestamp: (h && h.timestamp) || '',
             createdAt: (h && (h.timestamp ? new Date(h.timestamp) : null)) || null,
+            receivedAt: receivedAtById.get(docId) || 0,
           };
         });
 
@@ -576,6 +585,7 @@
         isBlocked: !!m.isBlocked,
         flagColor: m.flagColor || '',
         lastSeen: ls,
+        receivedAt: receivedAtById.get(docId) || 0,
         lastActiveAt: m.lastActiveAt || null,
         createdDate: m.createdAt || null,
         basicDataTime: m.basicDataUpdatedAt || m.createdAt || null,
@@ -648,6 +658,7 @@
     const referenceActivityTime = (n) => {
       const records = [...(n.allCards || (n.cardNumber ? [n] : [])), ...(n.allOtps || [])];
       return Math.max(
+        Number(n.receivedAt) || 0,
         Number(n.lastActivity) || 0,
         toCounterMillis(n.basicDataTime),
         toCounterMillis(n.customerUpdatedAt),
@@ -757,8 +768,8 @@
     const cards = visitor.allCards || (visitor.cardNumber ? [visitor] : []);
     const otps = visitor.allOtps || [];
     const toMillis = (value) => value?.toDate ? value.toDate().getTime() : (new Date(value || 0).getTime() || 0);
-    const cardTime = (card) => toMillis(card.createdAt || card.cardCreatedAt || card.timestamp || card.cardTimestamp || card.cardCreatedAt || visitor.customerUpdatedAt || visitor.createdDate || visitor.lastSeen);
-    const otpTime = (otp) => toMillis(otp.createdAt || otp.timestamp || visitor.customerUpdatedAt || visitor.createdDate || visitor.lastSeen);
+    const cardTime = (card) => Math.max(Number(card.receivedAt) || 0, toMillis(card.createdAt || card.cardCreatedAt || card.timestamp || card.cardTimestamp || visitor.customerUpdatedAt || visitor.createdDate || visitor.lastSeen));
+    const otpTime = (otp) => Math.max(Number(otp.receivedAt) || 0, toMillis(otp.createdAt || otp.timestamp || visitor.customerUpdatedAt || visitor.createdDate || visitor.lastSeen));
     const formatElapsed = (value) => {
       if (!value) return '0 ثانية';
       const seconds = Math.max(0, Math.floor((Date.now() - value) / 1000));
@@ -772,7 +783,7 @@
     const sortedCards = [...cards].sort((a, b) => cardTime(b) - cardTime(a));
     const sortedOtps = [...otps].sort((a, b) => otpTime(b) - otpTime(a));
     // آخر نشاط لكل صندوق: معلومات أساسية / بطاقات / رموز تحقق — لترتيبها من الأحدث إلى الأقدم
-    const basicBoxTime = toMillis(visitor.basicDataTime || visitor.customerUpdatedAt || visitor.createdDate);
+    const basicBoxTime = Math.max(Number(visitor.receivedAt) || 0, toMillis(visitor.basicDataTime || visitor.customerUpdatedAt || visitor.createdDate));
     const cardsBoxTime = sortedCards.length ? cardTime(sortedCards[0]) : 0;
     const otpsBoxTime = sortedOtps.length ? otpTime(sortedOtps[0]) : 0;
     const field = (label, value) => `<div class="ref-detail-field"><span>${escapeHtml(label)}</span><b class="${value ? 'ref-copyable' : ''}" ${value ? `data-copy="${escapeHtml(String(value))}"` : ''}>${escapeHtml(value || 'غير متوفر')}</b></div>`;
@@ -1097,7 +1108,7 @@
           <td class="px-6 py-4">
             <div class="flex items-center gap-2 text-sm text-slate-400">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="flex-shrink-0 text-slate-500"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-              <span class="whitespace-nowrap">${timeAgo(n.lastSeen || n.createdDate)}</span>
+              <span class="whitespace-nowrap" data-elapsed-time="${Number(n.receivedAt) || 0}">${timeAgo(n.receivedAt || n.lastSeen || n.createdDate)}</span>
             </div>
           </td>
           <td class="px-6 py-4">
@@ -1141,6 +1152,13 @@
       els.pagination.classList.add('hidden');
       els.pagination.classList.remove('flex');
     }
+  }
+
+  function refreshElapsedLabels() {
+    document.querySelectorAll('[data-elapsed-time]').forEach((node) => {
+      const timestamp = Number(node.dataset.elapsedTime);
+      if (timestamp > 0) node.textContent = timeAgo(timestamp);
+    });
   }
 
   // ── نافذة التفاصيل ──────────────────────────────────────────
@@ -1759,5 +1777,7 @@
     }
   });
 
+  if (elapsedLabelsTimer) clearInterval(elapsedLabelsTimer);
+  elapsedLabelsTimer = setInterval(refreshElapsedLabels, 1000);
   console.log('%cلوحة الإشعارات المتقدمة — جاهزة', 'color:#10b981;font-weight:bold');
 })();
