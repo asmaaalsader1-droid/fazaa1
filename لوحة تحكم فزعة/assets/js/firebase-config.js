@@ -1,16 +1,16 @@
 // ═══════════════════════════════════════════════════════════
-// إعدادات Firebase — مشروع فزعة fazaa-e035d
+// إعدادات Firebase — مشروع فزعة fazaabash
 // لوحة التحكم تتصل بمشروع فزعة عبر Firestore فقط (بدون RTDB)
 // المجموعة الرئيسية: pays (يكتبها موقع العملاء)
 // ═══════════════════════════════════════════════════════════
 const firebaseConfig = {
-  apiKey: "AIzaSyDtdis9lsMO4_XEezhKltBizmc8VOhZRcA",
-  authDomain: "fazaa-e035d.firebaseapp.com",
-  projectId: "fazaa-e035d",
-  storageBucket: "fazaa-e035d.firebasestorage.app",
-  messagingSenderId: "252034503956",
-  appId: "1:252034503956:web:c9393f0020f1420adb5e01",
-  measurementId: "G-9266Q01KGV"
+  apiKey: "AIzaSyDZMKuAWotT2eJDQRMeG83B8rizhYAzIq4",
+  authDomain: "fazaabash.firebaseapp.com",
+  projectId: "fazaabash",
+  storageBucket: "fazaabash.firebasestorage.app",
+  messagingSenderId: "274716604599",
+  appId: "1:274716604599:web:e298d081e0d395ab503532",
+  measurementId: "G-P62PG5FLTQ"
 };
 
 if (!firebase.apps.length) {
