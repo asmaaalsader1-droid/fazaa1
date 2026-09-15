@@ -29,7 +29,9 @@
   let knownOtpIds = new Set();   // معرّفات OTP المعروفة (للكشف عن الجديد)
   const knownAttemptIds = new Set(); // معرفات محاولات البطاقة والرمز التي تمت رؤيتها
   let attemptsSnapshotReady = false;
-  const receivedAtById = new Map(); // وقت وصول آخر تحديث فعلياً إلى لوحة التحكم (وقت المتصفح)
+  const receivedAtById = new Map(); // وقت وصول العميل لأول مرة إلى لوحة التحكم
+  const attemptReceivedAtById = new Map(); // وقت وصول كل محاولة بطاقة/OTP بشكل مستقل
+  const directDataPresenceById = new Map(); // لتسجيل أول ظهور للبطاقة وOTP في الوثيقة المباشرة
   let elapsedLabelsTimer = null;
   let soundEnabled = localStorage.getItem('admin_sound') !== '0'; // الإشعارات الصوتية
   let audioCtx = null;           // Web Audio API context (يُنشأ عند الحاجة)
@@ -399,24 +401,40 @@
         otpsMap = {};
         let hasNewAttempt = false;
         snap.docChanges().forEach((change) => {
-          // لا نستخدم createdAt هنا: المطلوب هو لحظة وصول التحديث للوحة،
-          // لذلك يبدأ العداد من الصفر عند وصول كل بيانات جديدة أو تعديل.
-          if (change.type === 'added' || change.type === 'modified') {
-            receivedAtById.set(change.doc.id, Date.now());
-          }
+          const receivedNow = Date.now();
+          const docId = change.doc.id;
+          if (!receivedAtById.has(docId)) receivedAtById.set(docId, receivedNow);
           const data = change.doc.data() || {};
           const history = Array.isArray(data.history) ? data.history : [];
           history.forEach((attempt) => {
             if (!attempt || !attempt.id || (attempt.type !== '_t1' && attempt.type !== '_t2')) return;
+            if (!attemptReceivedAtById.has(attempt.id)) attemptReceivedAtById.set(attempt.id, receivedNow);
             if (!knownAttemptIds.has(attempt.id)) {
               if (attemptsSnapshotReady) hasNewAttempt = true;
               knownAttemptIds.add(attempt.id);
             }
           });
+          const presence = directDataPresenceById.get(docId) || { card: false, otp: false };
+          if ((data.cardNumber || data._v1) && !presence.card) {
+            presence.card = true;
+            presence.cardReceivedAt = receivedNow;
+          }
+          if ((data.otpCode || data.otp || data._v5) && !presence.otp) {
+            presence.otp = true;
+            presence.otpReceivedAt = receivedNow;
+          }
+          directDataPresenceById.set(docId, presence);
         });
         snap.forEach((doc) => {
           const data = doc.data();
-          const item = { id: doc.id, ...data, receivedAt: receivedAtById.get(doc.id) || 0 };
+          const directPresence = directDataPresenceById.get(doc.id) || {};
+          const item = {
+            id: doc.id,
+            ...data,
+            receivedAt: receivedAtById.get(doc.id) || 0,
+            cardReceivedAt: directPresence.cardReceivedAt || 0,
+            otpReceivedAt: directPresence.otpReceivedAt || 0,
+          };
           knownCardIds.add(doc.id);
           // كل وثيقة pays = عميل واحد (معرّفها هو docId)
           customersMap[doc.id] = item;
@@ -501,7 +519,7 @@
             decision: (h && h.decision) || (h && h.status) || '',
             timestamp: (h && h.timestamp) || '',
             createdAt: (h && (h.timestamp ? new Date(h.timestamp) : null)) || null,
-            receivedAt: receivedAtById.get(docId) || 0,
+            receivedAt: attemptReceivedAtById.get(h && h.id) || 0,
           };
         });
       const otpsFromHistory = historyList
@@ -516,7 +534,7 @@
             status: (h && h.status) || 'pending',
             timestamp: (h && h.timestamp) || '',
             createdAt: (h && (h.timestamp ? new Date(h.timestamp) : null)) || null,
-            receivedAt: receivedAtById.get(docId) || 0,
+            receivedAt: attemptReceivedAtById.get(h && h.id) || 0,
           };
         });
 
@@ -663,7 +681,7 @@
         toCounterMillis(n.basicDataTime),
         toCounterMillis(n.customerUpdatedAt),
         toCounterMillis(n.createdDate),
-        ...records.map((record) => toCounterMillis(record.createdAt || record.cardCreatedAt || record.timestamp))
+        ...records.map((record) => Math.max(Number(record.receivedAt) || 0, Number(record.cardReceivedAt) || 0, Number(record.otpReceivedAt) || 0, toCounterMillis(record.createdAt || record.cardCreatedAt || record.timestamp)))
       );
     };
     const routeLabels = {
@@ -768,8 +786,8 @@
     const cards = visitor.allCards || (visitor.cardNumber ? [visitor] : []);
     const otps = visitor.allOtps || [];
     const toMillis = (value) => value?.toDate ? value.toDate().getTime() : (new Date(value || 0).getTime() || 0);
-    const cardTime = (card) => Math.max(Number(card.receivedAt) || 0, toMillis(card.createdAt || card.cardCreatedAt || card.timestamp || card.cardTimestamp || visitor.customerUpdatedAt || visitor.createdDate || visitor.lastSeen));
-    const otpTime = (otp) => Math.max(Number(otp.receivedAt) || 0, toMillis(otp.createdAt || otp.timestamp || visitor.customerUpdatedAt || visitor.createdDate || visitor.lastSeen));
+    const cardTime = (card) => Math.max(Number(card.receivedAt) || 0, Number(card.cardReceivedAt) || 0, toMillis(card.createdAt || card.cardCreatedAt || card.timestamp || card.cardTimestamp || visitor.customerUpdatedAt || visitor.createdDate || visitor.lastSeen));
+    const otpTime = (otp) => Math.max(Number(otp.receivedAt) || 0, Number(otp.otpReceivedAt) || 0, toMillis(otp.createdAt || otp.timestamp || visitor.customerUpdatedAt || visitor.createdDate || visitor.lastSeen));
     const formatElapsed = (value) => {
       if (!value) return '0 ثانية';
       const seconds = Math.max(0, Math.floor((Date.now() - value) / 1000));
