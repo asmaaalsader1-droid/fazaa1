@@ -1,0 +1,9 @@
+# إعدادات نشر لوحة تحكم فزعة على Netlify
+[build]
+  publish = "."
+
+# كل الطلبات تذهب إلى index.html (تطبيق صفحة واحدة)
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

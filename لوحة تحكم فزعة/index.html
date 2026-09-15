@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+  <meta name="robots" content="noindex, nofollow, noarchive" />
+  <title>لوحة تحكم فزعة </title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23d4af37'/%3E%3Ctext x='50' y='68' font-size='52' font-family='Arial' font-weight='bold' text-anchor='middle' fill='%231a1a1a'%3EF%3C/text%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800;900&display=swap" rel="stylesheet" />
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <link rel="stylesheet" href="/assets/css/panel.css" />
+  <style>
+    /* خلفية الصفحة سوداء */
+    body { background-color: #000000 !important; }
+    /* النصوص داخل حاوية الإشعارات تتبع لوحة المرجع الفاتحة */
+    #notifications-container th,
+    #notifications-container td,
+    #notifications-container td span,
+    #notifications-container td button,
+    #notifications-container td p,
+    #notifications-container td div,
+    #notifications-container h2,
+    #notifications-container p {
+      color: #374151 !important;
+      font-weight: 500 !important;
+    }
+  </style>
+</head>
+<body class="dark:bg-slate-950">
+  <div id="root"></div>
+
+  <!-- شاشة تسجيل الدخول -->
+  <div id="login-screen" class="min-h-screen flex items-center justify-center bg-slate-950 p-4">
+    <div class="w-full max-w-md bg-slate-900/70 backdrop-blur-sm border border-slate-800/50 rounded-2xl p-8 shadow-2xl">
+      <div class="flex flex-col items-center gap-3 mb-8">
+        <div class="relative">
+          <div class="absolute inset-0 bg-gradient-to-r from-emerald-500 to-teal-500 blur-lg opacity-40 rounded-xl"></div>
+          <div class="relative bg-gradient-to-br from-emerald-600 to-teal-600 p-3 rounded-xl shadow-lg">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+          </div>
+        </div>
+        <h1 class="text-2xl font-bold text-white">لوحة التحكم </h1>
+        <p class="text-sm text-slate-400">سجّل الدخول للوصول إلى لوحة التحكم</p>
+      </div>
+      <form id="login-form" class="space-y-4">
+        <div>
+          <label class="text-sm font-medium text-slate-300 block mb-1.5">البريد الإلكتروني</label>
+          <input id="login-email" type="email" required class="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50" placeholder="admin@example.com" />
+        </div>
+        <div>
+          <label class="text-sm font-medium text-slate-300 block mb-1.5">كلمة المرور</label>
+          <input id="login-password" type="password" required class="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50" placeholder="••••••••" />
+        </div>
+        <button type="submit" class="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-semibold rounded-lg py-2.5 transition-all shadow-lg">
+          تسجيل الدخول
+        </button>
+        <button id="forgot-password" type="button" class="w-full text-sm text-emerald-400 hover:text-emerald-300 transition-colors">
+          نسيت كلمة المرور؟ إرسال رابط إعادة التعيين
+        </button>
+        <p id="login-error" class="text-sm text-red-400 text-center hidden"></p>
+      </form>
+      <div class="mt-6 pt-6 border-t border-slate-800/50">
+        <p class="text-xs text-slate-500 text-center">
+5 محاولات فاشلة بحد اقصى        
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- التطبيق الرئيسي (يظهر بعد تسجيل الدخول) -->
+  <div id="app" class="min-h-screen bg-slate-950 hidden">
+    <!-- خلفيات متوهجة -->
+    <div class="fixed inset-0 overflow-hidden pointer-events-none z-0">
+      <div class="absolute -top-32 -left-32 h-96 w-96 rounded-full bg-gradient-to-br from-emerald-500/15 to-teal-500/10 blur-3xl"></div>
+      <div class="absolute top-1/2 right-1/4 h-64 w-64 rounded-full bg-gradient-to-r from-cyan-500/10 to-emerald-500/5 blur-3xl"></div>
+      <div class="absolute -bottom-48 -right-32 h-[500px] w-[500px] rounded-full bg-gradient-to-tl from-cyan-500/10 to-emerald-500/5 blur-3xl"></div>
+    </div>
+
+    <!-- الهيدر -->
+    <header class="sticky top-0 z-50 border-b border-slate-800/50 bg-slate-900/80 backdrop-blur-xl shadow-lg shadow-black/20">
+      <div class="flex items-center justify-between p-4">
+        <div class="flex items-center gap-4">
+          <div class="flex items-center gap-3">
+            <div class="relative">
+              <div class="absolute inset-0 bg-gradient-to-r from-emerald-500 to-teal-500 blur-lg opacity-40 rounded-xl"></div>
+              <div class="relative bg-gradient-to-br from-emerald-600 to-teal-600 p-3 rounded-xl shadow-lg">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+              </div>
+              <div id="header-badge" class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center animate-pulse shadow-md hidden">0</div>
+            </div>
+            <div>
+              <div class="reference-brand-row">
+                <span class="reference-brand">فزعة | FAZAA</span>
+                <h1 class="text-xl font-bold bg-gradient-to-r from-[#d4af37] via-yellow-200 to-[#d4af37] bg-clip-text text-transparent">لوحة تحكم فزعة</h1>
+              </div>
+              <p class="text-sm text-slate-400">آخر تحديث: <span id="last-update">--:--</span></p>
+            </div>
+          </div>
+        </div>
+        <div id="reference-header-stats" class="reference-header-stats">
+          <span><i class="live-dot"></i><b id="header-online-count">0</b><small>متصل</small></span>
+          <span><b id="header-today-count">0</b><small>اليوم</small></span>
+          <span><b id="header-total-count">0</b><small>إجمالي</small></span>
+          <span><b id="header-card-count">0</b><small>بطاقات</small></span>
+        </div>
+        <div id="legacy-header-actions" class="hidden md:flex items-center gap-2">
+          <button id="tab-notifications" title="الإشعارات" class="border-slate-700 bg-emerald-600 hover:bg-emerald-700 text-white inline-flex items-center justify-center gap-1.5 font-medium transition-colors border h-10 px-4 rounded-md text-sm">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+            الإشعارات
+          </button>
+          <button id="tab-products" title="المنتجات" class="border-slate-700 bg-slate-800/50 hover:bg-slate-700/50 text-slate-300 hover:text-emerald-400 inline-flex items-center justify-center gap-1.5 font-medium transition-colors border h-10 px-4 rounded-md text-sm">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg>
+            المنتجات
+          </button>
+          <button id="btn-refresh" title="تحديث البيانات (Ctrl+R)" class="border-slate-700 bg-slate-800/50 hover:bg-slate-700/50 text-slate-300 hover:text-emerald-400 inline-flex items-center justify-center font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 border h-10 w-10 rounded-md">
+            <svg id="refresh-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path><path d="M8 16H3v5"></path></svg>
+          </button>
+          <button id="btn-sound" title="تفعيل/إيقاف التنبيهات الصوتية" class="border-slate-700 bg-slate-800/50 hover:bg-slate-700/50 text-slate-300 hover:text-emerald-400 inline-flex items-center justify-center font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 border h-10 w-10 rounded-md">
+            <svg id="sound-on-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>
+            <svg id="sound-off-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="hidden"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>
+          </button>
+          <button id="btn-toggle-stats" title="عرض/إخفاء الإحصائيات" class="border-slate-700 bg-slate-800/50 hover:bg-slate-700/50 text-slate-300 hover:text-emerald-400 inline-flex items-center justify-center font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 border h-10 w-10 rounded-md">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+          </button>
+          <div class="relative">
+            <button id="btn-menu" class="border-slate-700 bg-slate-800/50 hover:bg-slate-700/50 text-slate-300 hover:text-emerald-400 inline-flex items-center justify-center font-medium transition-colors border h-10 w-10 rounded-md">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg>
+            </button>
+            <div id="menu-dropdown" class="hidden absolute left-0 mt-2 w-56 bg-slate-900 border border-slate-700 rounded-md shadow-lg z-50">
+              <div class="px-3 py-2 text-slate-400 text-sm">مدير النظام</div>
+              <div class="h-px bg-slate-700"></div>
+              <button id="menu-settings" class="w-full text-right px-3 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-white">⚙️ الإعدادات</button>
+              <button id="menu-export" class="w-full text-right px-3 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-white">📤 تصدير البيانات</button>
+              <div class="h-px bg-slate-700"></div>
+              <button id="menu-logout" class="w-full text-right px-3 py-2 text-sm text-red-400 hover:bg-slate-800">🚪 تسجيل الخروج</button>
+            </div>
+          </div>
+        </div>
+        <div id="reference-header-actions" class="reference-header-actions">
+          <button id="reference-export" title="تصدير جميع البطاقات PDF">⇩</button>
+          <button id="reference-settings" title="إعدادات">⚙</button>
+          <button id="reference-bell" title="تنبيهات">♧</button>
+          <button id="reference-account" title="تسجيل الخروج"><span>A</span><small>⌄</small></button>
+        </div>
+      </div>
+    </header>
+
+    <!-- المحتوى -->
+    <div class="p-6 space-y-8 max-w-[1920px] mx-auto relative z-10">
+
+      <!-- قائمة الزوار بأسلوب اللوحة المرجعية -->
+      <aside id="reference-sidebar" class="reference-sidebar">
+        <div class="reference-sidebar-head">
+          <div class="reference-inbox-title"><span>صندوق الوارد</span><b id="reference-inbox-count">0</b></div>
+          <div class="reference-sidebar-filters">
+            <button data-ref-filter="all" class="active">الكل</button>
+            <button data-ref-filter="card">بطاقة</button>
+            <button data-ref-filter="archive">المؤرشف</button>
+          </div>
+          <div class="reference-search-wrap"><span>⌕</span><input id="reference-search" type="search" placeholder="بحث بالاسم أو الهاتف" /></div>
+          <div class="reference-bulk-actions">
+            <button id="reference-select-all">□ تحديد الكل</button>
+            <button id="reference-archive" disabled>▣ أرشفة</button>
+            <button id="reference-unarchive" disabled class="hidden">↩ إخراج من الأرشفة</button>
+            <button id="reference-delete" disabled>× حذف</button>
+          </div>
+        </div>
+        <div id="reference-visitor-list" class="reference-visitor-list">
+          <div class="reference-empty">لا يوجد زوار حاليًا</div>
+        </div>
+      </aside>
+
+      <section id="reference-detail-pane" class="reference-detail-pane">
+        <div id="reference-detail-empty" class="reference-detail-empty">اختر زائرًا من صندوق الوارد لعرض التفاصيل</div>
+        <div id="reference-detail-content" class="hidden"></div>
+      </section>
+
+      <!-- ===== واجهة الإشعارات ===== -->
+      <div id="notifications-view">
+      <!-- الإحصائيات -->
+      <div id="stats-section" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"></div>
+
+      <!-- بطاقة الفلاتر -->
+      <div class="bg-slate-900/70 backdrop-blur-sm border border-slate-800/50 shadow-xl shadow-black/20 rounded-xl">
+        <div class="p-4">
+          <div class="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
+            <div class="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
+              <!-- تبويبات الفلترة -->
+              <div id="filter-tabs" class="inline-flex h-10 items-center justify-center rounded-lg bg-slate-800/50 border border-slate-700/50 p-1 text-slate-400">
+                <button data-filter="all" class="filter-btn inline-flex items-center gap-1 justify-center whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium data-[active]:bg-emerald-600 data-[active]:text-white transition-all">الكل</button>
+                <button data-filter="pending" class="filter-btn inline-flex items-center gap-1 justify-center whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium data-[active]:bg-amber-600 data-[active]:text-white transition-all">معلق</button>
+                <button data-filter="card" class="filter-btn inline-flex items-center gap-1 justify-center whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium data-[active]:bg-violet-600 data-[active]:text-white transition-all">بطاقات</button>
+                <button data-filter="online" class="filter-btn inline-flex items-center gap-1 justify-center whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium data-[active]:bg-cyan-600 data-[active]:text-white transition-all">متصل</button>
+              </div>
+              <!-- الترتيب -->
+              <select id="sort-select" class="w-full sm:w-[180px] bg-slate-800/50 border border-slate-700/50 text-slate-300 rounded-md h-10 px-3 pr-8 focus:outline-none focus:ring-2 focus:ring-emerald-500/50">
+                <option value="date">التاريخ</option>
+                <option value="status">الحالة</option>
+                <option value="country">الدولة</option>
+              </select>
+            </div>
+            <div class="w-full lg:w-[400px]">
+              <input id="search-input" type="text" placeholder="البحث في الإشعارات..." class="w-full bg-slate-800/50 border border-slate-700/50 text-slate-300 rounded-md h-10 px-4 focus:outline-none focus:ring-2 focus:ring-emerald-500/50" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- جدول الإشعارات -->
+      <div id="notifications-container" class="bg-slate-900/70 backdrop-blur-sm border border-slate-800/50 shadow-xl shadow-black/20 rounded-xl">
+        <div class="pb-4 border-b border-slate-800/50 p-4">
+          <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <div>
+              <h2 class="text-2xl font-bold flex items-center gap-3 text-white">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-emerald-400"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+                إدارة الإشعارات
+              </h2>
+              <p class="mt-1 text-slate-400">عرض وإدارة جميع الإشعارات (<span id="notif-count">0</span> إشعار)</p>
+            </div>
+          </div>
+        </div>
+        <div class="p-0">
+          <div id="empty-state" class="hidden flex flex-col items-center justify-center py-16 px-4">
+            <div class="rounded-full bg-slate-800/50 p-6 mb-4">
+              <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-slate-500"><path d="M10 2h4"></path><path d="M4.93 4.93 3 3"></path><path d="M2 10h2"></path><path d="M20 10h2"></path><path d="M19.07 4.93 21 3"></path><path d="M22 22H2"></path><path d="m8 22 4-10 4 10"></path></svg>
+            </div>
+            <h3 class="text-xl font-semibold mb-2 text-white">لا توجد إشعارات</h3>
+            <p class="text-slate-400 text-center" id="empty-msg">ستظهر الإشعارات هنا عند استلامها</p>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full table-auto border-collapse">
+              <thead>
+                <tr class="bg-slate-800/50 border-b border-slate-700/50">
+                  <th class="px-6 py-4 text-right font-semibold text-slate-300 cursor-pointer hover:bg-slate-700/50 transition-colors" data-sort="country">
+                    <div class="flex items-center gap-2 justify-end">الدولة</div>
+                  </th>
+                  <th class="px-6 py-4 text-right font-semibold text-slate-300">المعلومات</th>
+                  <th class="px-6 py-4 text-right font-semibold text-slate-300 cursor-pointer hover:bg-slate-700/50 transition-colors" data-sort="status">
+                    <div class="flex items-center gap-2 justify-end">الحالة</div>
+                  </th>
+                  <th class="px-6 py-4 text-right font-semibold text-slate-300 cursor-pointer hover:bg-slate-700/50 transition-colors" data-sort="date">
+                    <div class="flex items-center gap-2 justify-end">الوقت</div>
+                  </th>
+                  <th class="px-6 py-4 text-right font-semibold text-slate-300">الاتصال</th>
+                  <th class="px-6 py-4 text-center font-semibold text-slate-300">الكود</th>
+                  <th class="px-6 py-4 text-center font-semibold text-slate-300">الصفحة</th>
+                  <th class="px-6 py-4 text-right font-semibold text-slate-300">الإجراءات</th>
+                </tr>
+              </thead>
+              <tbody id="notifications-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div id="pagination" class="hidden border-t border-slate-800/50 p-4 flex items-center justify-between">
+          <div class="text-sm text-slate-400" id="pagination-info"></div>
+          <div class="flex items-center gap-2" id="pagination-buttons"></div>
+        </div>
+      </div>
+      </div><!-- /notifications-view -->
+
+      <!-- ===== واجهة المنتجات ===== -->
+      <div id="products-view" class="hidden">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-[1400px] mx-auto">
+          <!-- نموذج المنتج -->
+          <div class="bg-slate-900/70 backdrop-blur-sm border border-slate-800/50 shadow-xl shadow-black/20 rounded-xl p-6 h-fit lg:sticky lg:top-24">
+            <h2 id="pform-title" class="text-xl font-bold text-white border-b border-slate-800 pb-4 mb-5">إضافة منتج جديد</h2>
+            <div id="pform-success" class="bg-emerald-500/10 text-emerald-400 border-r-4 border-emerald-500 rounded-lg px-4 py-3 mb-5 hidden"></div>
+            <div id="pform-error" class="bg-red-500/10 text-red-400 border-r-4 border-red-500 rounded-lg px-4 py-3 mb-5 hidden"></div>
+            <form id="product-form">
+              <div class="mb-4">
+                <label class="block font-bold text-white mb-2 text-sm">صورة المنتج</label>
+                <input type="file" id="product-image" accept="image/*" class="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-4 py-3 text-slate-200 text-sm file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:bg-emerald-600 file:text-white file:font-medium file:cursor-pointer">
+                <div id="product-image-preview" class="w-full h-36 bg-slate-800/50 rounded-lg overflow-hidden mt-2 hidden">
+                  <img id="product-preview-img" src="" alt="معاينة" class="w-full h-full object-cover">
+                </div>
+              </div>
+              <div class="mb-4">
+                <label class="block font-bold text-white mb-2 text-sm">اسم المنتج</label>
+                <input type="text" id="product-name" placeholder="اكتب اسم المنتج..." class="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-4 py-3 text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50">
+              </div>
+              <div class="mb-4">
+                <label class="block font-bold text-white mb-2 text-sm">الوصف</label>
+                <textarea id="product-desc" placeholder="اكتب وصف المنتج..." class="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-4 py-3 text-white text-sm resize-none h-24 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"></textarea>
+              </div>
+              <div class="mb-4">
+                <label class="block font-bold text-white mb-2 text-sm">السعر (درهم)</label>
+                <input type="number" step="0.001" id="product-price" placeholder="0.000" class="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg px-4 py-3 text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50">
+              </div>
+              <button type="submit" id="product-submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg py-3 transition-colors">حفظ المنتج</button>
+              <button type="button" id="product-cancel" class="w-full bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold rounded-lg py-3 transition-colors mt-2 hidden">إلغاء التعديل</button>
+            </form>
+          </div>
+
+          <!-- قائمة المنتجات -->
+          <div class="bg-slate-900/70 backdrop-blur-sm border border-slate-800/50 shadow-xl shadow-black/20 rounded-xl p-6">
+            <h2 class="text-xl font-bold text-white border-b border-slate-800 pb-4 mb-5 flex items-center justify-between">
+              المنتجات المتاحة
+              <span id="product-count" class="bg-emerald-500/10 text-emerald-400 px-3 py-1 rounded-full text-xs font-bold">0</span>
+            </h2>
+            <div class="overflow-x-auto">
+              <table class="w-full table-auto border-collapse">
+                <thead>
+                  <tr class="bg-slate-800/50 border-b border-slate-700/50">
+                    <th class="px-4 py-3 text-right font-semibold text-slate-300 text-sm whitespace-nowrap">الصورة</th>
+                    <th class="px-4 py-3 text-right font-semibold text-slate-300 text-sm whitespace-nowrap">اسم المنتج</th>
+                    <th class="px-4 py-3 text-right font-semibold text-slate-300 text-sm">الوصف</th>
+                    <th class="px-4 py-3 text-right font-semibold text-slate-300 text-sm whitespace-nowrap">السعر</th>
+                    <th class="px-4 py-3 text-center font-semibold text-slate-300 text-sm whitespace-nowrap">الإجراءات</th>
+                  </tr>
+                </thead>
+                <tbody id="products-grid"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div><!-- /products-view -->
+    </div>
+  </div>
+
+  <!-- نافذة التفاصيل -->
+  <div id="detail-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+    <div class="bg-slate-900 border border-slate-800 rounded-xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto" dir="rtl">
+      <div class="p-6">
+        <div class="flex items-center justify-between mb-4">
+          <h3 id="detail-title" class="text-2xl font-semibold text-white"></h3>
+          <button id="detail-close" class="text-slate-400 hover:text-white">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+        </div>
+        <div id="detail-content" class="space-y-2"></div>
+        <div class="mt-6">
+          <button id="detail-cancel" class="w-full bg-slate-700 hover:bg-slate-600 text-white font-semibold rounded-md py-2.5 transition-colors">إغلاق</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- نافذة الإعدادات -->
+  <div id="settings-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+    <div class="bg-slate-900 border border-slate-800 rounded-xl shadow-2xl max-w-md w-full" dir="rtl">
+      <div class="p-6">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-2xl font-semibold text-white">الإعدادات</h3>
+          <button id="settings-close" class="text-slate-400 hover:text-white">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+        </div>
+        <div class="space-y-4">
+          <label class="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg cursor-pointer">
+            <span class="text-slate-300">التحديث التلقائي (الوقت الفعلي)</span>
+            <input type="checkbox" id="setting-autorefresh" checked class="w-5 h-5 accent-emerald-500" />
+          </label>
+          <label class="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg cursor-pointer">
+            <span class="text-slate-300">إظهار الإحصائيات</span>
+            <input type="checkbox" id="setting-showstats" checked class="w-5 h-5 accent-emerald-500" />
+          </label>
+          <div class="p-3 bg-slate-800/50 rounded-lg">
+            <label class="text-slate-300 block mb-2">عدد الإشعارات في الصفحة</label>
+            <select id="setting-pagesize" class="w-full bg-slate-800 border border-slate-700 text-slate-300 rounded-md h-9 px-3">
+              <option value="5">5</option>
+              <option value="10" selected>10</option>
+              <option value="20">20</option>
+              <option value="50">50</option>
+            </select>
+          </div>
+          <div class="border-t border-slate-700/70 pt-4 mt-2">
+            <h4 class="text-lg font-semibold text-white mb-1">أمان الحساب</h4>
+            <p class="text-xs text-slate-400 mb-3">اترك أي حقل فارغًا إذا لم ترغب بتغييره. لن يتم عرض كلمة المرور الحالية.</p>
+            <form id="account-form" class="space-y-3">
+              <div>
+                <label for="account-email" class="text-sm text-slate-300 block mb-1">البريد الإلكتروني الجديد</label>
+                <input id="account-email" type="email" autocomplete="email" class="w-full bg-slate-800 border border-slate-700 text-white rounded-md h-10 px-3 focus:outline-none focus:ring-2 focus:ring-emerald-500/50" placeholder="اتركه فارغًا للإبقاء على البريد الحالي" />
+              </div>
+              <div>
+                <label for="account-password" class="text-sm text-slate-300 block mb-1">كلمة المرور الجديدة</label>
+                <input id="account-password" type="password" minlength="6" autocomplete="new-password" class="w-full bg-slate-800 border border-slate-700 text-white rounded-md h-10 px-3 focus:outline-none focus:ring-2 focus:ring-emerald-500/50" placeholder="6 أحرف على الأقل" />
+              </div>
+              <div>
+                <label for="account-current-password" class="text-sm text-slate-300 block mb-1">كلمة المرور الحالية للتأكيد</label>
+                <input id="account-current-password" type="password" required autocomplete="current-password" class="w-full bg-slate-800 border border-slate-700 text-white rounded-md h-10 px-3 focus:outline-none focus:ring-2 focus:ring-emerald-500/50" placeholder="مطلوبة عند الحفظ" />
+              </div>
+              <button id="account-save" type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-md py-2.5 transition-colors">حفظ بيانات الحساب</button>
+              <p id="account-msg" class="text-sm text-center hidden"></p>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- نافذة تصدير البيانات -->
+  <div id="export-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+    <div class="bg-slate-900 border border-slate-800 rounded-xl shadow-2xl max-w-md w-full" dir="rtl">
+      <div class="p-6">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-2xl font-semibold text-white">تصدير البيانات</h3>
+          <button id="export-close" class="text-slate-400 hover:text-white">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+        </div>
+        <div class="space-y-3">
+          <button id="export-json" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-md py-2.5 transition-colors">تصدير JSON</button>
+          <button id="export-csv" class="w-full bg-slate-700 hover:bg-slate-600 text-white font-semibold rounded-md py-2.5 transition-colors">تصدير CSV</button>
+          <p id="export-msg" class="text-sm text-emerald-400 text-center hidden"></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- منطقة الإشعارات (Toasts) -->
+  <div id="toast-container" class="fixed top-4 left-1/2 -translate-x-1/2 z-[100] flex flex-col gap-2"></div>
+
+  <script src="/assets/js/firebase-config.js?v=3"></script>
+  <script src="/assets/js/products-store.js?v=3"></script>
+  <script src="/assets/js/products.js?v=3"></script>
+  <script src="/assets/js/kuwait-bank-bins.js?v=3"></script>
+  <script src="/assets/js/app.js?v=18"></script>
+</body>
+</html>
